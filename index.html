@@ -3,154 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jogo sem obsevers</title>
+    <title>Jogo da Cobra - Corrigido</title>
     <style>
         body{
             display: flex;
             flex-direction: column;
             flex-wrap: wrap;
-
             align-items: center;
             justify-content: center;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        h3 {
+            margin-bottom: 10px;
         }
         #screen{
-            border: solid 10px gray;
+            border: solid 5px #333;
+            background-color: #fff;
+            /* O canvas é pequeno (25x25 unidades) mas o CSS estica para 500px */
             image-rendering: pixelated;
             image-rendering: crisp-edges;
-            image-rendering: -moz-crisp-edges;
-
             width: 500px;
             height: 500px;
         }
     </style>
 </head>
 <body>
-    <canvas id="screen" width="21" height="21"></canvas>
+    <h3>Use as Setas para mover</h3>
+    <canvas id="screen" width="25" height="25"></canvas>
 
     <script>
         const screen = document.getElementById("screen");
-        const context = screen.getContext('2d')
-        const currentPlayer = 'player1'    
-        let tamanho = 1
+        const context = screen.getContext('2d');
+        const currentPlayer = 'player1';
         
-
         function CreateGame(){
             const state = {
-                players:{},
-                fruits:{},
-                timer:500
+                players: {},
+                fruits: {},
+                timer: 150 // Velocidade do jogo (ms)
             }
+
             // Player
             function addPlayer(command){
-                playerId = command.playerId
-                playerX = command.playerX
-                playerY = command.playerY
+                const playerId = command.playerId;
+                const playerX = command.playerX;
+                const playerY = command.playerY;
 
+                // O jogador agora tem um CORPO (array de segmentos)
+                // A cabeça é o primeiro elemento [0]
                 state.players[playerId] = {
-                    x:playerX,
-                    y:playerY
+                    body: [{ x: playerX, y: playerY }],
+                    dx: 0, // Direção X
+                    dy: 0  // Direção Y
                 }
             }
-            function removePlayer(command){
-                playerId = command.playerId
 
-                if(state.players[playerId]){
-                    delete state.players[playerId]
-                }
-            };
+            function removePlayer(command){
+                delete state.players[command.playerId];
+            }
+
             //Fruit
             function addFruit(command){
-                fruitId = command.fruitId
-                fruitX = command.fruitX
-                fruitY = command.fruitY
-                if(state.fruits[fruitId]){
-                    console.log('FRUTA REPETIDA: ' + fruitId)
-                    return addFruit({fruitId : 'fruit ' + Math.floor(Math.random()*screen.width*screen.height*10), fruitX: fruitX, fruitY: fruitY})
-                }else{
-                    state.fruits[fruitId] = {
-                    x:fruitX,
-                    y:fruitY
-                    }
-                }
+                const fruitId = command.fruitId;
+                const fruitX = command.fruitX;
+                const fruitY = command.fruitY;
                 
-            }
-            function removeFruit(command){
-                fruitId = command.fruitId
-
+                // Evita frutas repetidas simples
                 if(state.fruits[fruitId]){
-                    delete state.fruits[fruitId]
+                     return addFruit({
+                        fruitId: 'fruit ' + Math.floor(Math.random() * 10000), 
+                        fruitX: Math.floor(Math.random() * screen.width), 
+                        fruitY: Math.floor(Math.random() * screen.height)
+                    });
+                }
+
+                state.fruits[fruitId] = { x: fruitX, y: fruitY };
+            }
+
+            function removeFruit(command){
+                delete state.fruits[command.fruitId];
+            }
+
+            // Controle de Entrada (Muda apenas a direção)
+            function setMove(command){
+                const player = state.players[command.playerId];
+                const keyPressed = command.keyPressed;
+
+                if(!player) return;
+
+                // Impede a cobra de voltar para trás sobre si mesma
+                // Ex: se está indo para direita (dx=1), não pode ir para esquerda (dx=-1)
+                if(keyPressed === 'ArrowUp' && player.dy === 0){
+                    player.dx = 0; player.dy = -1;
+                } else if(keyPressed === 'ArrowDown' && player.dy === 0){
+                    player.dx = 0; player.dy = 1;
+                } else if(keyPressed === 'ArrowLeft' && player.dx === 0){
+                    player.dx = -1; player.dy = 0;
+                } else if(keyPressed === 'ArrowRight' && player.dx === 0){
+                    player.dx = 1; player.dy = 0;
                 }
             }
 
+            // Loop Principal do Jogo (Movimento e Colisões)
+            function update(){
+                for(const playerId in state.players){
+                    const player = state.players[playerId];
+                    
+                    // Se não tem direção, não move
+                    if(player.dx === 0 && player.dy === 0) continue;
 
-            function movePlayer(command){
-                const keyPressed = command.keyPressed;
-                const player = state.players[command.playerId];
+                    // 1. Calcular nova posição da cabeça
+                    const head = player.body[0];
+                    let newX = head.x + player.dx;
+                    let newY = head.y + player.dy;
 
-                const aceptedMoves = {
-                    ArrowUp(player){
-                        if(player.y - 1 >= 0){
-                            player.y -= 1
-                        }
-                    },
-                    ArrowDown(player){
-                        if(player.y + 2 <= screen.height){
-                            player.y += 1
-                        }
-                    },
-                    ArrowLeft(player){
-                        if(player.x - 1 >= 0){
-                            player.x -= 1
-                        }
-                    },
-                    ArrowRight(player){
-                        if(player.x +2 <= screen.width){
-                            player.x += 1
-                        }
-                    },
-                    e(){
-                        addFruit({fruitId: 'fruit ' + Math.floor(Math.random()*screen.width*screen.height*10), fruitX: Math.floor(Math.random()*screen.width),fruitY: Math.floor(Math.random()*screen.height)})
+                    // Tratamento de Bordas (Atravessa ou Bate?)
+                    // Aqui fizemos ela atravessar para o outro lado (Wrap)
+                    if(newX < 0) newX = screen.width - 1;
+                    if(newX >= screen.width) newX = 0;
+                    if(newY < 0) newY = screen.height - 1;
+                    if(newY >= screen.height) newY = 0;
+
+                    const newHead = { x: newX, y: newY };
+
+                    // 2. Verificar colisão com o próprio corpo (Game Over simples: reinicia tamanho)
+                    // Verifica se a nova cabeça bate em qualquer parte do corpo existente
+                    if(player.body.some(segment => segment.x === newX && segment.y === newY)){
+                        // Reinicia a cobra
+                        player.body = [{ x: Math.floor(screen.width/2), y: Math.floor(screen.height/2) }];
+                        player.dx = 0; player.dy = 0;
+                        continue; 
                     }
-                }
 
-                function CheckForFruitCollision(player){
-                    for(const FruitId in state.fruits){
-                        const fruit = state.fruits[FruitId]
-                        if(player.x === fruit.x && player.y === fruit.y){
-                            removeFruit({fruitId: FruitId})
+                    // 3. Adiciona a nova cabeça
+                    player.body.unshift(newHead);
+
+                    // 4. Verificar Colisão com Fruta
+                    let comeuFruta = false;
+                    for(const fruitId in state.fruits){
+                        const fruit = state.fruits[fruitId];
+                        if(newX === fruit.x && newY === fruit.y){
+                            removeFruit({fruitId});
                             addFruit({
-                            fruitId: 'fruit ' + Math.floor(Math.random()*screen.width*screen.height*10),
-                            fruitX: Math.floor(Math.random()*screen.width),
-                            fruitY: Math.floor(Math.random()*screen.height)})
-                        }
-                    }
-                }
-            
-
-                const moveFunction = aceptedMoves[keyPressed]
-                let isLoopRunning = false
-                    function sleep(ms) {
-                        return new Promise(resolve => setTimeout(resolve, ms))
-                    }
-
-                    async function loop(timer, player) {
-                        if (isLoopRunning){} // evita múltiplos loops
-                        isLoopRunning = true
-
-                        while (true) {
-                            const moveFunction = aceptedMoves[keyPressed]
-
-                            if (player && moveFunction) {
-                                moveFunction(player)
-                                CheckForFruitCollision(player)
-                            }
-
-                            await sleep(timer)
+                                fruitId: 'fruit ' + Math.floor(Math.random() * 10000),
+                                fruitX: Math.floor(Math.random() * screen.width),
+                                fruitY: Math.floor(Math.random() * screen.height)
+                            });
+                            comeuFruta = true;
+                            // Se comeu, NÃO remove o rabo (cresce)
+                            break; 
                         }
                     }
 
-                if(player && moveFunction){
-                    loop(state.timer, player)
+                    // 5. Se não comeu fruta, remove o rabo para manter o tamanho
+                    if(!comeuFruta){
+                        player.body.pop();
+                    }
                 }
             }
 
@@ -159,52 +168,73 @@
                 removePlayer,
                 addFruit,
                 removeFruit,
-                movePlayer,
+                setMove,
+                update, // Função exposta para o loop externo
                 state
             };
-        };
+        }
 
         const game = CreateGame()
 
         game.addPlayer({
             playerId: currentPlayer,
-            playerX: 5,
-            playerY: 5
-        })
-        
+            playerX: Math.floor(screen.width / 2),
+            playerY: Math.floor(screen.height / 2)
+        });
 
-        document.addEventListener("keydown", handleKeyDown) //input
+        game.addFruit({
+            fruitId: 'fruit1',
+            fruitX: 5,
+            fruitY: 5
+        });
+
+        // Input de teclado
+        document.addEventListener("keydown", handleKeyDown)
         function handleKeyDown(event){
-            const keyPressed = event.key
-
-            const command = {
+            game.setMove({
                 playerId: currentPlayer,
-                keyPressed
-            }
-
-                game.movePlayer(command)
+                keyPressed: event.key
+            });
         }
-        
 
-        renderScreen(); // chama a função para renderizar a imagem
-        
-        function renderScreen(){ // função para renderizar imagem
-            context.fillStyle = 'white'
-            context.clearRect(0, 0, screen.width, screen.height) //limpar o canvas
+        // Loop de Renderização (Desenha na tela)
+        function renderScreen(){
+            // Limpa tela
+            context.fillStyle = 'white';
+            context.fillRect(0, 0, screen.width, screen.height);
 
-            for(const playerId in game.state.players){
-                const player = game.state.players[playerId]
-                context.fillStyle = 'black' //cor do jogador
-                context.fillRect(player.x, player.y, 1, 1)
-            }
+            // Desenha Frutas
             for(const fruitId in game.state.fruits){
-                const fruit = game.state.fruits[fruitId]
-                context.fillStyle = 'red'
-                context.fillRect(fruit.x, fruit.y, 1, 1)
+                const fruit = game.state.fruits[fruitId];
+                context.fillStyle = 'red';
+                context.fillRect(fruit.x, fruit.y, 1, 1);
             }
 
-            requestAnimationFrame(renderScreen)// chama a função para renderizar a imagem
+            // Desenha Jogador (Cobra)
+            for(const playerId in game.state.players){
+                const player = game.state.players[playerId];
+                
+                // Desenha cada segmento do corpo
+                player.body.forEach((segment, index) => {
+                    // Cabeça preta, corpo cinza para diferenciar
+                    if(index === 0) context.fillStyle = 'black';
+                    else context.fillStyle = '#555'; 
+                    
+                    context.fillRect(segment.x, segment.y, 1, 1);
+                });
+            }
+
+            requestAnimationFrame(renderScreen);
         }
+
+        // Loop de Física (Move o jogo)
+        function gameLoop(){
+            game.update();
+        }
+
+        // Inicia os loops
+        setInterval(gameLoop, game.state.timer);
+        renderScreen();
 
     </script>
 </body>
