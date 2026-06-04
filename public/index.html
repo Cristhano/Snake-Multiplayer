@@ -38,15 +38,24 @@
 
         const socket = io()
         const screen = document.getElementById("screen");
-        let game = CreateGame()
-        let playerId = ''
+        const game = CreateGame()
+
+        let state = game.state
+        let playerId
 
         socket.on('connect', () => {
             playerId = socket.id
             console.log('Jogador conectado no servidor com o id:' + playerId)
-            console.log(playerId)  
+            console.log(playerId)
 
-            renderScreen(screen, game, playerId, requestAnimationFrame); // chama a função para renderizar a imagem
+            const KeybordListenes = createKeybordListenes(document, playerId)
+            KeybordListenes.registerPlayerId(playerId)
+            KeybordListenes.subscribe(game.movePlayer)
+            KeybordListenes.subscribe((command) => {
+                socket.emit('move-player', command )
+            })
+
+            
         })
 
         socket.on('disconnect', (socket) => {
@@ -57,21 +66,17 @@
         })
         socket.on('setup', (state) => {
             game.state = state
-            
-            const KeybordListenes = createKeybordListenes(document, playerId)
-            KeybordListenes.registerPlayerId(playerId)
-            KeybordListenes.subscribe(game.movePlayer)
+            renderScreen(screen, state, playerId, requestAnimationFrame)
         })
         socket.on('add-player', (command) => {
-            console.log('Adicionado novo jogador: ' + command.playerId)
-            console.log('com X: ' + command.playerX + " Y: " + command.playerY)
             game.addPlayer(command)
+            console.log("Jogador conectado: " + command.playerId)
         })
         socket.on('remove-player', (command) => {
-            console.log('Jogador removido ' + command.playerId)
             game.removeplayer(command)
         })
-        
+
+        socket.on('render', (command) => {renderScreen(screen, state, playerId, requestAnimationFrame)})
     </script>
 </body>
 

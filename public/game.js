@@ -30,14 +30,13 @@ export default function CreateGame() {
             y: Y,
             cont: 0
         }
+
         NotifyAll({
             type: 'add-player',
             playerId: player,
             playerX: X,
             playerY: Y
         })
-
-        console.log(state)
     }
     function addFruit(command) {
         const fruit = command.fruitId
@@ -58,7 +57,6 @@ export default function CreateGame() {
     }
     function removeFruit(fruit) {
         delete state.fruits[fruit]
-        console.log(state.players)
     }
     //Checa Coilsão
     function checkColision(player) {
@@ -80,10 +78,13 @@ export default function CreateGame() {
     }
     //Mover Jogador------
     function movePlayer(command) {
+        if(command.type != 'move-player'){return}
+        NotifyAll(command)
+
         const playerId = command.playerId
         const player = state.players[playerId];
-        if(!command.keyPressed){return}
         const keyPressed = command.keyPressed
+
         const acceptedMoves = {
             ArrowUp(player) { if (player.y > 0) { player.y -= 1 } },
             ArrowDown(player) { if (player.y < state.screen.width - 1) { player.y += 1 } },
@@ -91,9 +92,15 @@ export default function CreateGame() {
             ArrowRight(player) { if (player.x < state.screen.height - 1) { player.x += 1 } }
         }
         const MoveFunction = acceptedMoves[keyPressed]
-        if (player && MoveFunction) { MoveFunction(player); console.log('Move'), console.log(playerId)}
 
-        checkColision(player)
+        if (player && MoveFunction) {
+            MoveFunction(player)
+            checkColision(player)
+
+            console.log("move: " + player)
+            console.log(state)
+        }
+
     }
 
     return {
