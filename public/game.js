@@ -50,7 +50,6 @@ export default function CreateGame() {
     //remover---------
     function removeplayer(command) {
         delete state.players[command.playerId]
-        console.log(state.players)
 
         NotifyAll({
             type: 'remove-player',
